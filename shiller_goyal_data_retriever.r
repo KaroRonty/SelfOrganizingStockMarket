@@ -26,18 +26,34 @@ shillerdata$Date <- NULL
 # -------------------------------- Read Goyal data
 GET("http://www.hec.unil.ch/agoyal/docs/PredictorData2017.xlsx", write_disk(temp <- tempfile(fileext = ".xls")))
 goyaldata <- read_xlsx(temp, sheet = 1)
-goyaldata <- select(goyaldata, c("yyyymm", "b/m"))
+goyaldata <- select(goyaldata, c("yyyymm", "infl", "b/m"))
 
 # Make dates into same format as above and prepare names for joining
 goyaldata$yyyymm <- paste(substr(goyaldata$yyyymm, 1, 4), substr(goyaldata$yyyymm, 5, 6), sep = "-")
-names(goyaldata) <- c("dates", "bm")
+names(goyaldata) <- c("dates", "infl", "bm")
 
 full_data <- full_join(shillerdata, goyaldata, by = "dates")
 
 # --------------------------------  Replace written NAs with real NAs
 full_data$bm[full_data$bm == "NaN"] <- NA
+full_data$infl[full_data$infl == "NaN"] <- NA
 full_data$CAPE[full_data$CAPE == "NA"] <- NA
 full_data$CAPE <- as.numeric(full_data$CAPE)
+full_data$infl <- as.numeric(full_data$infl) * 12
+
+# First calculate the daily returns
+full_data$diff <- (lag(lead(full_data$P) / full_data$P))
+# Then calculate an index including dividends
+full_data$index <- NA
+# First observation
+full_data$index[2] <- (full_data$P[1] + full_data$D[1] / 12) * full_data$diff[2]
+for (i in 1:I(nrow(full_data) - 2)) {
+  full_data$index[i + 2] <- (full_data$index[i + 1] + full_data$D[i + 1] / 12) * full_data$diff[i + 2]
+}
+# Calculate ten year returns
+for (i in 1:I(nrow(full_data) - 1)) {
+  full_data$tenyear[i + 1] <- (full_data$index[i + 121] / full_data$index[i + 1])^0.1
+}
 
 # Return only full data
 rm(list = setdiff(ls(), "full_data"))
