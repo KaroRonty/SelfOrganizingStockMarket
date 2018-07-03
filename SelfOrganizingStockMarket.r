@@ -1,7 +1,9 @@
 library(readxl)
-library(tidyr)
+library(tidyr) # gather
 library(dplyr)
-library(visdat)
+library(visdat) # missmap
+library(fields) # heatColors
+library(RColorBrewer) # heatColors
 library(kohonen)
 
 # Get data from Shiller & Goyal
@@ -27,22 +29,54 @@ full_data <- full_join(full_data, bls_data, by = "dates")
 
 # Calculate more needed variables
 full_data <- full_data %>% mutate(
-  "PE" = P/E,
-  "PB" = 1/as.numeric(bm),
-  "PD" = P/D
+  "PE" = P / E,
+  "PB" = 1 / as.numeric(bm),
+  "PD" = P / D
 )
 
 # Check NAs
 vis_dat(full_data)
 # -------------------------------------------------------
 
-
-# Calculate returns for the next 10 years
-
+# Set palette
+heatColors <- function(n, alpha = 1) {
+  rev(designer.colors(n = n, col = brewer.pal(9, "Spectral")))
+}
 
 # Keep only months where all data is available
 omitted_data <- na.omit(full_data)
 
 # Keep only variables to be used and scale the data
-som_data <- omitted_data %>% select(CAPE,PE, PB, PD, UnEmp, `Rate GS10`, tenyear)
+som_data <- omitted_data %>% select(CAPE, PE, PB, PD, UnEmp, infl, `Rate GS10`, tenyear)
 som_data_scaled <- apply(som_data, 2, scale)
+
+# Make the SOM grid and model using all of the variables
+som_grid <- somgrid(xdim = 5, ydim = 5, topo = "hexagonal")
+som_model <- som(som_data_scaled,
+                 grid = som_grid,
+                 rlen = 100, alpha = c(0.05, 0.01), keep.data = T
+)
+
+# Function for plotting SOM heatmaps
+plot_som <- function(variable) {
+  unit_colors <- aggregate(data.frame(som_data[, variable])[, 1],
+                           by = list(som_model$unit.classif), FUN = mean, simplify = T
+  )
+  plot(som_model,
+       type = "property", shape = "straight", property = unit_colors[, 2],
+       main = variable, palette.name = heatColors
+  )
+}
+
+# Plot all the variables
+par(mfrow = c(2, 2))
+for (i in seq_along(colnames(som_data))) {
+  plot_som(colnames(som_data)[i])
+}
+
+# Plot the qality plots
+plot(som_model, type = "counts", shape = "straight", main = "Node Counts")
+plot(som_model, type = "quality", shape = "straight", main = "Node Quality/Distance")
+plot(som_model, type = "dist.neighbours", shape = "straight", main = "SOM neighbour distances",
+     palette.name = grey.colors)
+plot(som_model, shape = "straight", type = "codes")
