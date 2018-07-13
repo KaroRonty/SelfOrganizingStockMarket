@@ -7,7 +7,7 @@ library(RColorBrewer) # heatColors
 library(kohonen)
 
 # Get data from Shiller & Goyal
-source("shiller_goyal_data_retriever.r")
+source("https://raw.githubusercontent.com/KaroRonty/ShillerGoyalDataRetriever/master/ShillerGoyalDataRetriever.r")
 
 # Load unemployment data from BLS
 bls_data <- read_xlsx("bls_data.xlsx", sheet = 1, skip = 10)
