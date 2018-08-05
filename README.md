@@ -5,4 +5,4 @@ Variables that are analyzed are CAPE, P/E, P/B, P/D, unemployment rate, inflatio
 
 ![soms](https://github.com/KaroRonty/SelfOrganizingStockMarket/blob/master/soms.png)
 
-![clusters](https://github.com/KaroRonty/SelfOrganizingStockMarket/blob/master/clusters_commented.png)
+![clusters](https://github.com/KaroRonty/SelfOrganizingStockMarket/blob/master/clusters_comment.png)
