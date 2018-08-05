@@ -47,10 +47,11 @@ heatColors <- function(n, alpha = 1) {
 omitted_data <- na.omit(full_data)
 
 # Keep only variables to be used and scale the data
-som_data <- omitted_data %>% select(CAPE, PE, PB, PD, UnEmp, infl, `Rate GS10`, tenyear)
+som_data <- omitted_data %>% select(CAPE, PE, PB, PD, UnEmp, infl, `Rate GS10`, tenyear_real)
 som_data_scaled <- apply(som_data, 2, scale)
 
 # Make the SOM grid and model using all of the variables
+set.seed(5)
 som_grid <- somgrid(xdim = 5, ydim = 5, topo = "hexagonal")
 som_model <- som(som_data_scaled,
                  grid = som_grid,
