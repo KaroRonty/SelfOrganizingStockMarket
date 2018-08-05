@@ -81,3 +81,10 @@ plot(som_model, type = "quality", shape = "straight", main = "Node Quality/Dista
 plot(som_model, type = "dist.neighbours", shape = "straight", main = "SOM neighbour distances",
      palette.name = grey.colors)
 plot(som_model, shape = "straight", type = "codes")
+
+# Clustering
+par(mfrow = c(1,1))
+palette <- c("#F25F73", '#98C94C', '#888E94', '#33A5BF', '#F7D940')
+som_cluster <- cutree(hclust(dist(as.data.frame(som_model$codes))), 4)
+plot(som_model, type="mapping", bgcol = palette[som_cluster], main = "Clusters", shape = "straight")
+add.cluster.boundaries(som_model, som_cluster)
