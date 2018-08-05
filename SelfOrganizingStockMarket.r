@@ -52,7 +52,7 @@ som_data_scaled <- apply(som_data, 2, scale)
 
 # Make the SOM grid and model using all of the variables
 set.seed(5)
-som_grid <- somgrid(xdim = 5, ydim = 5, topo = "hexagonal")
+som_grid <- somgrid(xdim = 6, ydim = 6, topo = "hexagonal")
 som_model <- som(som_data_scaled,
                  grid = som_grid,
                  rlen = 100, alpha = c(0.05, 0.01), keep.data = T
