@@ -1,7 +1,6 @@
 library(readxl)
 library(tidyr) # gather
 library(dplyr)
-library(visdat) # missmap
 library(fields) # heatColors
 library(RColorBrewer) # heatColors
 library(kohonen)
@@ -9,45 +8,38 @@ library(kohonen)
 # Get data from Shiller & Goyal
 source("https://raw.githubusercontent.com/KaroRonty/ShillerGoyalDataRetriever/master/ShillerGoyalDataRetriever.r")
 
-# Load unemployment data from BLS
-bls_data <- read_xlsx("bls_data.xlsx", sheet = 1, skip = 10)
-bls_data <- bls_data %>% gather(month, UnEmp, Jan:Dec)
+# Load unemployment data from BLS, format dates
+bls_data <- read_xlsx("bls_data.xlsx",
+                      sheet = 1,
+                      skip = 10) %>%
+  gather(month, UnEmp, Jan:Dec) %>%
+  mutate(month = factor(month, levels = month.abb)) %>%
+  arrange(Year, month) %>%
+  mutate(months = sprintf("%02d", match(month, month.abb)),
+         dates = paste(Year, months, sep = "-")) %>%
+  select(dates, UnEmp)
 
-# Make the months into sortable and arrange by date
-bls_data$month <- factor(bls_data$month, levels = month.abb)
-bls_data <- bls_data %>% arrange(Year, month)
+# Join the data with data from Shiller & Goyal by year and month
+# Calculate more needed variables, keep only months where all data is available
+combined_data <- full_data %>%
+  full_join(bls_data, by = "dates") %>%
+  mutate("PE" = P / E,
+         "PB" = 1 / as.numeric(bm),
+         "PD" = P / D) %>%
+  na.omit()
 
-# Add month numbers and leading zeros, paste month and year together
-bls_data$months <- rep(1:12, tail(bls_data$Year, 1) - head(bls_data$Year, 1) + 1)
-bls_data$months <- sprintf("%02d", as.numeric(bls_data$months))
-bls_data$dates <- paste(bls_data$Year, bls_data$months, sep = "-")
-bls_data <- bls_data %>% select(dates, UnEmp)
+# Keep only the variables to be used
+som_data <- combined_data %>%
+  select(CAPE,
+         PE,
+         PB,
+         PD,
+         UnEmp,
+         infl,
+         `Rate GS10`,
+         tenyear_real)
 
-
-# Join the  data with data from Shiller & Goyal by month
-full_data <- full_join(full_data, bls_data, by = "dates")
-
-# Calculate more needed variables
-full_data <- full_data %>% mutate(
-  "PE" = P / E,
-  "PB" = 1 / as.numeric(bm),
-  "PD" = P / D
-)
-
-# Check NAs
-vis_dat(full_data)
-# -------------------------------------------------------
-
-# Set palette
-heatColors <- function(n, alpha = 1) {
-  rev(designer.colors(n = n, col = brewer.pal(9, "Spectral")))
-}
-
-# Keep only months where all data is available
-omitted_data <- na.omit(full_data)
-
-# Keep only variables to be used and scale the data
-som_data <- omitted_data %>% select(CAPE, PE, PB, PD, UnEmp, infl, `Rate GS10`, tenyear_real)
+# Scale the data for SOM
 som_data_scaled <- apply(som_data, 2, scale)
 
 # Make the SOM grid and model using all of the variables
@@ -55,18 +47,28 @@ set.seed(5)
 som_grid <- somgrid(xdim = 6, ydim = 6, topo = "hexagonal")
 som_model <- som(som_data_scaled,
                  grid = som_grid,
-                 rlen = 100, alpha = c(0.05, 0.01), keep.data = T
-)
+                 rlen = 100,
+                 alpha = c(0.05, 0.01),
+                 keep.data = TRUE)
+
+# Set heat colors palette
+heatColors <- function(n, alpha = 1) {
+  rev(designer.colors(n = n, col = brewer.pal(9, "Spectral")))
+}
 
 # Function for plotting SOM heatmaps
 plot_som <- function(variable) {
-  unit_colors <- aggregate(data.frame(som_data[, variable])[, 1],
-                           by = list(som_model$unit.classif), FUN = mean, simplify = T
-  )
+  unit_colors <- aggregate(data.frame(som_data[, variable]),
+                           by = list(som_model$unit.classif),
+                           FUN = mean,
+                           simplify = TRUE)
+  
   plot(som_model,
-       type = "property", shape = "straight", property = unit_colors[, 2],
-       main = variable, palette.name = heatColors
-  )
+       type = "property",
+       shape = "straight",
+       property = unit_colors[, 2],
+       main = variable,
+       palette.name = heatColors)
 }
 
 # Plot all the variables
@@ -75,16 +77,36 @@ for (i in seq_along(colnames(som_data))) {
   plot_som(colnames(som_data)[i])
 }
 
-# Plot the qality plots
-plot(som_model, type = "counts", shape = "straight", main = "Node Counts")
-plot(som_model, type = "quality", shape = "straight", main = "Node Quality/Distance")
-plot(som_model, type = "dist.neighbours", shape = "straight", main = "SOM neighbour distances",
-     palette.name = grey.colors)
-plot(som_model, shape = "straight", type = "codes")
+# Plot the quality plots
+plot(som_model,
+     type = "counts",
+     shape = "straight",
+     main = "Node Counts")
 
-# Clustering
-par(mfrow = c(1,1))
-palette <- c("#F25F73", '#98C94C', '#888E94', '#33A5BF', '#F7D940')
+plot(som_model,
+     type = "quality",
+     shape = "straight",
+     main = "Node Quality/Distance")
+
+plot(som_model,
+     type = "dist.neighbours",
+     shape = "straight",
+     main = "SOM neighbour distances",
+     palette.name = grey.colors)
+
+plot(som_model,
+     shape = "straight",
+     type = "codes")
+
+# Cluster and plot with cluster boundaries
+par(mfrow = c(1, 1))
+palette <- c("#F25F73", "#98C94C", "#888E94", "#33A5BF", "#F7D940")
 som_cluster <- cutree(hclust(dist(as.data.frame(som_model$codes))), 4)
-plot(som_model, type="mapping", bgcol = palette[som_cluster], main = "Clusters", shape = "straight")
+
+plot(som_model,
+     type = "mapping",
+     bgcol = palette[som_cluster],
+     main = "Clusters",
+     shape = "straight")
+
 add.cluster.boundaries(som_model, som_cluster)
